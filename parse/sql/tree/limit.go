@@ -7,13 +7,23 @@ import (
 // Limit is a LIMIT clause.
 // It takes an expression, and can optionally take either an offset or a second expression.
 type Limit struct {
+	node
+
+	// LIMIT row_count OFFSET offset;
+	// IS SAME AS
+	// LIMIT offset, row_count;
+	// TODO: in the tree we should just use one or the other, not both.
 	Expression       Expression
 	Offset           Expression
 	SecondExpression Expression
 }
 
+func (l *Limit) Accept(v AstVisitor) any {
+	return v.VisitLimit(l)
+}
+
 // Accept implements the Visitor interface.
-func (l *Limit) Accept(w Walker) error {
+func (l *Limit) Walk(w AstWalker) error {
 	return run(
 		w.EnterLimit(l),
 		accept(w, l.Expression),
