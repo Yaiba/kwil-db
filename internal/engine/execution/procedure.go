@@ -163,11 +163,18 @@ func prepareStmt(stmt string, immutable bool, tables []*types.Table) (instructio
 		if err != nil {
 			return nil, err
 		}
+		//
+		//var stubSchema *types.Schema
+		//costCalculator, err := cost.GenCostCalculator(stmt.Statement, tables, stubSchema)
+		//if err != nil {
+		//	return nil, err
+		//}
 
 		i := &dmlStmt{
 			DeterministicStatement:    deterministic.Statement(),
 			NonDeterministicStatement: nonDeterministic.Statement(),
 			Mutative:                  deterministic.Mutative(),
+			//CostCalculator:            costCalculator,
 		}
 		instr = i
 
@@ -288,6 +295,9 @@ type dmlStmt struct {
 
 	// Mutative is whether the statement mutates state.
 	Mutative bool
+
+	//// CostCalculator is the cost calculator for the statement.
+	//CostCalculator cost.Calculator
 }
 
 func (e *dmlStmt) execute(scope *ScopeContext, dataset *dataset) error {
