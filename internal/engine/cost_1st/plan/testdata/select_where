@@ -1,3 +1,0 @@
-select name, age from users where id = 1;
------
-blabla
