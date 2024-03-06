@@ -160,3 +160,6 @@ We welcome contributions to kwil-db. To contribute, please read our [contributin
 The kwil-db repository (i.e. everything outside of the `core` directory) is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for more details.
 
 The kwil Go SDK (i.e. everything inside of the `core` directory) is licensed under the MIT License. See [core/LICENSE.md](core/LICENSE.md) for more details.
+
+
+pgp siged commit
