@@ -91,7 +91,7 @@ func ApplyRules(stmt string, flags VerifyFlag, tables []*common.Table, pgSchemaN
 		return nil, fmt.Errorf("error determining mutativity: %w", err)
 	}
 
-	generated, err := parsed.ToSQL()
+	generated, err := tree.SafeToSQL(parsed)
 	if err != nil {
 		return nil, fmt.Errorf("error generating SQL: %w", err)
 	}

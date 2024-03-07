@@ -8,6 +8,7 @@ import (
 	"github.com/kwilteam/kwil-db/internal/engine/sqlanalyzer/order"
 	sqlparser "github.com/kwilteam/kwil-db/parse/sql"
 	"github.com/kwilteam/kwil-db/parse/sql/postgres"
+	"github.com/kwilteam/kwil-db/parse/sql/tree"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -163,7 +164,7 @@ func Test_Order(t *testing.T) {
 			}
 			require.Equal(t, tt.err, err)
 
-			sql, err := stmt.ToSQL()
+			sql, err := tree.SafeToSQL(stmt)
 			require.NoError(t, err)
 
 			assert.Equal(t, removeSpaces(tt.want), removeSpaces(sql))

@@ -440,7 +440,7 @@ func makeExecutables(exprs []tree.Expression) ([]evaluatable, error) {
 			},
 		}
 
-		stmt, err := selectTree.ToSQL()
+		stmt, err := tree.SafeToSQL(selectTree)
 		if err != nil {
 			return nil, err
 		}
