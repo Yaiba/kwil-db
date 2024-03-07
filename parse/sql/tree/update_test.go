@@ -83,13 +83,13 @@ func TestUpdate_ToSQL(t *testing.T) {
 				CTE:        tt.fields.CTE,
 				UpdateStmt: tt.fields.Statement,
 			}
-			gotStr, err := u.ToSQL()
+			gotStr, err := tree.SafeToSQL(u)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Update.ToSQL() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("Update SafeToSQL() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !compareIgnoringWhitespace(gotStr, tt.wantStr) {
-				t.Errorf("Update.ToSQL() = %v, want %v", gotStr, tt.wantStr)
+				t.Errorf("Update SafeToSQL() = %v, want %v", gotStr, tt.wantStr)
 			}
 		})
 	}

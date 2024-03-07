@@ -20,18 +20,7 @@ func (ins *Insert) Accept(w Walker) error {
 	)
 }
 
-func (ins *Insert) ToSQL() (str string, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err2, ok := r.(error)
-			if !ok {
-				err2 = fmt.Errorf("%v", r)
-			}
-
-			err = err2
-		}
-	}()
-
+func (ins *Insert) ToSQL() string {
 	stmt := sqlwriter.NewWriter()
 
 	if len(ins.CTE) > 0 {
@@ -45,7 +34,7 @@ func (ins *Insert) ToSQL() (str string, err error) {
 
 	stmt.Token.Semicolon()
 
-	return stmt.String(), nil
+	return stmt.String()
 }
 
 type InsertStmt struct {

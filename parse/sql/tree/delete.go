@@ -1,8 +1,6 @@
 package tree
 
 import (
-	"fmt"
-
 	sqlwriter "github.com/kwilteam/kwil-db/parse/sql/tree/sql-writer"
 )
 
@@ -20,18 +18,7 @@ func (d *Delete) Accept(w Walker) error {
 	)
 }
 
-func (d *Delete) ToSQL() (str string, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err2, ok := r.(error)
-			if !ok {
-				err2 = fmt.Errorf("%v", r)
-			}
-
-			err = err2
-		}
-	}()
-
+func (d *Delete) ToSQL() string {
 	stmt := sqlwriter.NewWriter()
 
 	if len(d.CTE) > 0 {
@@ -45,7 +32,7 @@ func (d *Delete) ToSQL() (str string, err error) {
 
 	stmt.Token.Semicolon()
 
-	return stmt.String(), nil
+	return stmt.String()
 }
 
 type DeleteStmt struct {

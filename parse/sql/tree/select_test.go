@@ -79,13 +79,13 @@ func TestSelect_ToSQL(t *testing.T) {
 				CTE:        tt.fields.CTE,
 				SelectStmt: tt.fields.SelectStmt,
 			}
-			gotStr, err := s.ToSQL()
+			gotStr, err := tree.SafeToSQL(s)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Select.ToSQL() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("Select SafeToSQL() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !compareIgnoringWhitespace(gotStr, tt.wantStr) {
-				t.Errorf("Select.ToSQL() = %v, want %v", gotStr, tt.wantStr)
+				t.Errorf("Select SafeToSQL() = %v, want %v", gotStr, tt.wantStr)
 			}
 		})
 	}

@@ -84,13 +84,13 @@ func TestInsert_ToSQL(t *testing.T) {
 				ins.InsertStmt.SetSchema(tt.fields.Schema)
 			}
 
-			gotStr, err := ins.ToSQL()
+			gotStr, err := tree.SafeToSQL(ins)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Insert.ToSQL() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("Insert SafeToSQL() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !compareIgnoringWhitespace(gotStr, tt.wantStr) {
-				t.Errorf("Insert.ToSQL() = %v, want %v", gotStr, tt.wantStr)
+				t.Errorf("Insert SafeToSQL() = %v, want %v", gotStr, tt.wantStr)
 			}
 		})
 	}

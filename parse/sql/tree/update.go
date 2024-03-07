@@ -1,8 +1,6 @@
 package tree
 
 import (
-	"fmt"
-
 	sqlwriter "github.com/kwilteam/kwil-db/parse/sql/tree/sql-writer"
 )
 
@@ -21,18 +19,7 @@ func (u *Update) Accept(w Walker) error {
 	)
 }
 
-func (u *Update) ToSQL() (str string, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err2, ok := r.(error)
-			if !ok {
-				err2 = fmt.Errorf("%v", r)
-			}
-
-			err = err2
-		}
-	}()
-
+func (u *Update) ToSQL() string {
 	stmt := sqlwriter.NewWriter()
 
 	if len(u.CTE) > 0 {
@@ -46,7 +33,7 @@ func (u *Update) ToSQL() (str string, err error) {
 
 	stmt.Token.Semicolon()
 
-	return stmt.String(), nil
+	return stmt.String()
 }
 
 // UpdateStmt is a statement that represents an UPDATE statement.

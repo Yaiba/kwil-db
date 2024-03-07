@@ -2171,7 +2171,7 @@ func TestParseRawSQL_syntax_valid(t *testing.T) {
 			// use assert.Exactly?
 			assert.EqualValues(t, tt.expect, astTree, "ParseRawSQL() got %+v, want %+v", astTree, tt.expect)
 
-			sql, err := astTree.ToSQL()
+			sql, err := tree.SafeToSQL(astTree)
 			if err != nil {
 				t.Errorf("ParseRawSQL() got %s", err)
 			}
