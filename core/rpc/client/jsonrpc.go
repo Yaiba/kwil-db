@@ -1,7 +1,6 @@
-// Package rpcclient provides a Kwil JSON-RPC (API v1) client. It supports only
-// HTTP POST, no WebSockets yet. The JSONRPCClient type implements the
-// core/rpc/client/user.TxSvcClient interface that is required by
-// core/client.JSONRPCClient.
+// Package client provides some base Kwil rpc clients.
+// JSONRPCClient is a JSON-RPC (API v1) client supports only HTTP POST, no
+// WebSockets yet.
 package client
 
 import (
@@ -38,9 +37,9 @@ import (
 //    message (pb) types sent in POST, or just GET with endpoint implying method.
 //  - the "method" in the outer request type is instead of the endpoint, all POST
 
-// JSONRPCClient is a JSON-RPC client that handles sending and receiving
-// JSON-RPC requests and responses. It is a low-level client that does not
-// care about the specifics of the JSON-RPC methods or responses.
+// JSONRPCClient is a JSON-RPC client that handles JSON RPC communication.
+// It is a low-level client that does not care about the specifics of the
+// JSON-RPC methods or responses.
 type JSONRPCClient struct {
 	conn *http.Client
 
@@ -205,7 +204,7 @@ func clientError(jsonRPCErr *jsonrpc.Error) error {
 		return errors.Join(ErrNotFound, err)
 	// case jsonrpc.ErrorUnauthorized: // not yet used on server
 	// 	return errors.Join(client.ErrUnauthorized, err)
-	// case jsonrpc.ErrorInvalidSignature: // or leave this to core/client.JSONRPCClient to detect and report
+	// case jsonrpc.ErrorInvalidSignature: // or leave this to core/client.Client to detect and report
 	// 	return errors.Join(client.ErrInvalidSignature, err)
 	default:
 	}

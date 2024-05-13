@@ -36,7 +36,7 @@ func WrapUserClient(cl *userClient.Client) *Client {
 	}
 }
 
-var _ user.TxSvcClient = (*Client)(nil)  // via embedded rpcclient.JSONRPCClient
+var _ user.TxSvcClient = (*Client)(nil)  // via embedded userClient.Client
 var _ admin.AdminClient = (*Client)(nil) // with extra methods
 
 // Approve approves a validator join request for the validator identified by a

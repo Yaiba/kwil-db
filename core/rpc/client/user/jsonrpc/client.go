@@ -1,4 +1,6 @@
-package rpcclient
+// Package jsonrpc implements the core/rpc/client/user.TxSvcClient interface
+// that is required by core/client.Client.
+package jsonrpc
 
 import (
 	"context"
@@ -16,6 +18,9 @@ import (
 	"github.com/kwilteam/kwil-db/core/types/transactions"
 )
 
+// Client is a JSON-RPC client for the Kwil user service. It use the JSONRPCClient
+// from the rpcclient package for the actual JSON-RPC communication, and implements
+// the user.TxSvcClient interface.
 type Client struct {
 	*rpcclient.JSONRPCClient
 }

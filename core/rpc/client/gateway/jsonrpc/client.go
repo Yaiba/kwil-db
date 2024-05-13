@@ -1,3 +1,5 @@
+// package jsonrpc implements a JSON-RPC client for the Kwil gateway service.
+
 package jsonrpc
 
 import (
@@ -10,6 +12,9 @@ import (
 	"github.com/kwilteam/kwil-db/core/rpc/client/gateway"
 )
 
+// Client is a JSON-RPC client for the Kwil gateway service. It use the
+// JSONRPCClient from the rpcclient package for the actual JSON-RPC communication,
+// and implements gateway service methods.
 type Client struct {
 	*rpcclient.JSONRPCClient
 

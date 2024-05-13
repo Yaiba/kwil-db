@@ -17,9 +17,9 @@ func WithHTTPClient(client *http.Client) ClientOption {
 	}
 }
 
-// WithBaseRPCClient sets the user client for the client.
+// WithJSONRPCClient sets the jsonrpc client for the client.
 // This allows custom user clients to be used.
-func WithBaseRPCClient(userClient *rpcclient.JSONRPCClient) ClientOption {
+func WithJSONRPCClient(userClient *rpcclient.JSONRPCClient) ClientOption {
 	return func(c *clientOptions) {
 		c.JSONRPCClient = userClient
 	}

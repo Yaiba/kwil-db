@@ -112,7 +112,7 @@ func NewClient(ctx context.Context, target string, opts *GatewayOptions) (*Gatew
 
 	gatewayClient, err := gwClient.NewClient(parsedTarget,
 		// reuse the same http connection
-		gateway.WithBaseRPCClient(txClient.JSONRPCClient),
+		gateway.WithJSONRPCClient(txClient.JSONRPCClient),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create gateway rpc client: %w", err)
