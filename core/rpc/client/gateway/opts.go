@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 
-	userclient "github.com/kwilteam/kwil-db/core/rpc/client"
+	rpcclient "github.com/kwilteam/kwil-db/core/rpc/client"
 )
 
 type ClientOption func(*clientOptions)
@@ -19,7 +19,7 @@ func WithHTTPClient(client *http.Client) ClientOption {
 
 // WithBaseRPCClient sets the user client for the client.
 // This allows custom user clients to be used.
-func WithBaseRPCClient(userClient *userclient.JSONRPCClient) ClientOption {
+func WithBaseRPCClient(userClient *rpcclient.JSONRPCClient) ClientOption {
 	return func(c *clientOptions) {
 		c.JSONRPCClient = userClient
 	}
@@ -27,7 +27,7 @@ func WithBaseRPCClient(userClient *userclient.JSONRPCClient) ClientOption {
 
 type clientOptions struct {
 	Conn          *http.Client
-	JSONRPCClient *userclient.JSONRPCClient
+	JSONRPCClient *rpcclient.JSONRPCClient
 }
 
 // DefaultClientOptions returns the default client options, which ensure the

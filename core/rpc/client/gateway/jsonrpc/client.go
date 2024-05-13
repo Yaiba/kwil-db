@@ -6,12 +6,12 @@ import (
 	"net/http"
 	"net/url"
 
-	baseClient "github.com/kwilteam/kwil-db/core/rpc/client"
+	rpcclient "github.com/kwilteam/kwil-db/core/rpc/client"
 	"github.com/kwilteam/kwil-db/core/rpc/client/gateway"
 )
 
 type Client struct {
-	*baseClient.JSONRPCClient
+	*rpcclient.JSONRPCClient
 
 	conn *http.Client
 }
@@ -24,7 +24,7 @@ func NewClient(target *url.URL, opts ...gateway.ClientOption) (*Client, error) {
 	target = target.JoinPath("/rpc/v1")
 
 	c := gateway.DefaultClientOptions()
-	c.JSONRPCClient = baseClient.NewJSONRPCClient(target)
+	c.JSONRPCClient = rpcclient.NewJSONRPCClient(target)
 	for _, o := range opts {
 		o(c)
 	}

@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strings"
 
-	baseClient "github.com/kwilteam/kwil-db/core/rpc/client"
+	rpcclient "github.com/kwilteam/kwil-db/core/rpc/client"
 	"github.com/kwilteam/kwil-db/core/rpc/client/user"
 	jsonrpc "github.com/kwilteam/kwil-db/core/rpc/json"
 	"github.com/kwilteam/kwil-db/core/types"
@@ -17,12 +17,12 @@ import (
 )
 
 type Client struct {
-	*baseClient.JSONRPCClient
+	*rpcclient.JSONRPCClient
 }
 
-func NewClient(url *url.URL, opts ...baseClient.RPCClientOpts) *Client {
+func NewClient(url *url.URL, opts ...rpcclient.RPCClientOpts) *Client {
 	return &Client{
-		JSONRPCClient: baseClient.NewJSONRPCClient(url, opts...),
+		JSONRPCClient: rpcclient.NewJSONRPCClient(url, opts...),
 	}
 }
 
@@ -40,7 +40,7 @@ func (cl *Client) Ping(ctx context.Context) (string, error) {
 	return res.Message, nil
 }
 
-func (cl *Client) Broadcast(ctx context.Context, tx *transactions.Transaction, sync baseClient.BroadcastWait) ([]byte, error) {
+func (cl *Client) Broadcast(ctx context.Context, tx *transactions.Transaction, sync rpcclient.BroadcastWait) ([]byte, error) {
 	cmd := &jsonrpc.BroadcastRequest{
 		Tx:   tx,
 		Sync: (*jsonrpc.BroadcastSync)(&sync),
@@ -99,7 +99,7 @@ func unmarshalMapResults(b []byte) ([]map[string]any, error) {
 	return result, nil
 }
 
-func (cl *Client) Call(ctx context.Context, msg *transactions.CallMessage, opts ...baseClient.ActionCallOption) ([]map[string]any, error) {
+func (cl *Client) Call(ctx context.Context, msg *transactions.CallMessage, opts ...rpcclient.ActionCallOption) ([]map[string]any, error) {
 	cmd := &jsonrpc.CallRequest{
 		Body:     msg.Body,
 		AuthType: msg.AuthType,
