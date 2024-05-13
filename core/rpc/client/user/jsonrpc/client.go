@@ -1,211 +1,233 @@
-// Package rpcclient provides a Kwil JSON-RPC (API v1) client. It supports only
-// HTTP POST, no WebSockets yet. The Client type implements the
-// core/rpc/client/user.TxSvcClient interface that is required by
-// core/client.Client.
 package rpcclient
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
+	"math/big"
 	"net/url"
-	"reflect"
-	"strconv"
-	"sync/atomic"
+	"strings"
 
-	"github.com/kwilteam/kwil-db/core/log"
-	"github.com/kwilteam/kwil-db/core/rpc/client"
+	baseClient "github.com/kwilteam/kwil-db/core/rpc/client"
+	"github.com/kwilteam/kwil-db/core/rpc/client/user"
 	jsonrpc "github.com/kwilteam/kwil-db/core/rpc/json"
+	"github.com/kwilteam/kwil-db/core/types"
+	"github.com/kwilteam/kwil-db/core/types/transactions"
 )
 
-// client will use the commands to make certain requests
-//  - "params" field is set to the marshalled request structs
-//  - the "method" in the outer request type is instead of the endpoint, all POST
-//  - "id" is set to a counter's value
-//	- "jsonrpc" set to "2.0"
-//	- make http POST request with marshalled Request
-//	- unmarshal response into Response
-//	- if "error" field is set, the Error type is returned as Go error
-//	- maybe compare "id" to expected ID from request
-//	- unmarshal the "result" (json.RawMessage) into the method's result type
-
-// note compared to http grpc gateway:
-//
-//  - the structs marshal into json objects, set in "params" field of request.
-//    with the old http gateway, endpoints were defined with associated
-//    message (pb) types sent in POST, or just GET with endpoint implying method.
-//  - the "method" in the outer request type is instead of the endpoint, all POST
-
 type Client struct {
-	client   *http.Client
-	endpoint string
-	log      log.Logger
-
-	reqID atomic.Uint64
+	*baseClient.JSONRPCClient
 }
 
-// NewClient creates a new v1 JSON-RPC Client for a provider at a given base URL
-// of an HTTP server where the "/rpc/v1" rooted. i.e. The URL should not include
-// "/rpc/v1" as that is appended automatically.
-func NewClient(url *url.URL, opts ...Opts) *Client {
-	// This client uses API v1 methods and request/response types.
-	url = url.JoinPath("/rpc/v1")
-
-	clientOpts := &clientOptions{
-		client: &http.Client{},
-		log:    log.NewNoOp(), // log.NewStdOut(log.InfoLevel),
-	}
-	for _, opt := range opts {
-		opt(clientOpts)
-	}
-
-	cl := &Client{
-		endpoint: url.String(),
-		client:   clientOpts.client,
-		log:      clientOpts.log,
-	}
-
-	return cl
-}
-
-type Opts func(*clientOptions)
-
-type clientOptions struct {
-	client *http.Client
-	log    log.Logger
-}
-
-func WithLogger(log log.Logger) Opts {
-	return func(c *clientOptions) {
-		c.log = log
+func NewClient(url *url.URL, opts ...baseClient.RPCClientOpts) *Client {
+	return &Client{
+		JSONRPCClient: baseClient.NewJSONRPCClient(url, opts...),
 	}
 }
 
-func WithHTTPClient(client *http.Client) Opts {
-	return func(c *clientOptions) {
-		c.client = client
+var _ user.TxSvcClient = (*Client)(nil)
+
+func (cl *Client) Ping(ctx context.Context) (string, error) {
+	cmd := &jsonrpc.PingRequest{
+		Message: "ping",
 	}
-}
-
-func (cl *Client) nextReqID() string {
-	id := cl.reqID.Add(1)
-	return strconv.FormatUint(id, 10)
-}
-
-// NOTE: make a BaseClient with CallMethod only.
-
-func (cl *Client) CallMethod(ctx context.Context, method string, cmd, res any) error {
-	// res needs to be a pointer otherwise we can't unmarshal into it.
-	if rtp := reflect.TypeOf(res); rtp.Kind() != reflect.Ptr {
-		return errors.New("result must be a pointer")
-	}
-
-	// Marshal the params.
-	params, err := json.Marshal(cmd)
+	res := &jsonrpc.PingResponse{}
+	err := cl.CallMethod(ctx, string(jsonrpc.MethodPing), cmd, res)
 	if err != nil {
-		return err
+		return "", err
 	}
+	return res.Message, nil
+}
 
-	// Marshal the request.
-	id := cl.nextReqID()
-	req := jsonrpc.NewRequest(id, method, params)
-
-	request, err := json.Marshal(req)
+func (cl *Client) Broadcast(ctx context.Context, tx *transactions.Transaction, sync baseClient.BroadcastWait) ([]byte, error) {
+	cmd := &jsonrpc.BroadcastRequest{
+		Tx:   tx,
+		Sync: (*jsonrpc.BroadcastSync)(&sync),
+	}
+	res := &jsonrpc.BroadcastResponse{}
+	err := cl.CallMethod(ctx, string(jsonrpc.MethodBroadcast), cmd, res)
 	if err != nil {
-		return err
-	}
+		var jsonRPCErr *jsonrpc.Error
+		if errors.As(err, &jsonRPCErr) && jsonRPCErr.Code == jsonrpc.ErrorTxExecFailure && len(jsonRPCErr.Data) > 0 {
+			var berr jsonrpc.BroadcastError
+			jsonErr := json.Unmarshal(jsonRPCErr.Data, &berr)
+			if jsonErr != nil {
+				return nil, errors.Join(jsonErr, err)
+			}
 
-	// Build and perform the http request.
-	requestReader := bytes.NewReader(request)
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		cl.endpoint, requestReader)
+			switch transactions.TxCode(berr.TxCode) {
+			case transactions.CodeWrongChain:
+				return nil, errors.Join(transactions.ErrWrongChain, err)
+			case transactions.CodeInvalidNonce:
+				return nil, errors.Join(transactions.ErrInvalidNonce, err)
+			case transactions.CodeInvalidAmount:
+				return nil, errors.Join(transactions.ErrInvalidAmount, err)
+			case transactions.CodeInsufficientBalance:
+				return nil, errors.Join(transactions.ErrInsufficientBalance, err)
+			}
+		}
+		return nil, err
+	}
+	return res.TxHash, nil
+}
+
+func unmarshalMapResults(b []byte) ([]map[string]any, error) {
+	d := json.NewDecoder(strings.NewReader(string(b)))
+	d.UseNumber()
+
+	// unmashal result
+	var result []map[string]any
+	err := d.Decode(&result)
 	if err != nil {
-		return fmt.Errorf("failed to construct new http request: %w", err)
+		return nil, err
 	}
 
-	httpReq.Header.Set("Content-Type", "application/json")
-	// httpReq.SetBasicAuth(c.User, c.Pass)
-
-	httpResponse, err := cl.client.Do(httpReq)
-	if err != nil {
-		return fmt.Errorf("http post failed: %w", err)
-	}
-	defer httpResponse.Body.Close()
-
-	// For the most part we ignore the http status code in favor of structured
-	// errors in the response, but in case we cannot decode any response body,
-	// get an error based on the http status code.
-	var httpErr error
-	switch status := httpResponse.StatusCode; status {
-	case http.StatusOK: // expected with nil resp.Error
-	case http.StatusUnauthorized:
-		httpErr = client.ErrUnauthorized
-	case http.StatusNotFound:
-		httpErr = client.ErrNotFound
-	case http.StatusInternalServerError:
-		httpErr = errors.New("server error")
-	default:
-		if status >= 400 {
-			httpErr = errors.New(http.StatusText(status))
+	// convert numbers to int64
+	for _, record := range result {
+		for k, v := range record {
+			if num, ok := v.(json.Number); ok {
+				i, err := num.Int64()
+				if err != nil {
+					return nil, err
+				}
+				record[k] = i
+			}
 		}
 	}
 
-	resp := &jsonrpc.Response{}
-	err = json.NewDecoder(httpResponse.Body).Decode(resp)
-	if err != nil {
-		if httpErr != nil {
-			return httpErr
-		}
-		return fmt.Errorf("failed to decode response: %w", errors.Join(err, httpErr))
-	}
-
-	if resp.Error != nil {
-		return clientError(resp.Error)
-	} // any not OK http status code should have
-
-	if resp.JSONRPC != "2.0" { // indicates response body was not a jsonrpc.Response but didn't fail Decode
-		if httpErr != nil {
-			return httpErr
-		}
-		return fmt.Errorf("invalid JSON-RPC response")
-	}
-
-	// if resp.ID != id {
-	// 	fmt.Printf("got id %v, expected %v\n", resp.ID, id)
-	// } // who cares, this is http post
-
-	if err = json.Unmarshal(resp.Result, res); err != nil {
-		return fmt.Errorf("failed to decode result as response: %w", errors.Join(err, httpErr))
-	}
-
-	return nil
+	return result, nil
 }
 
-// clientError joins a jsonrpc.Error with a client.RPCError and any appropriate
-// named error kind like ErrNotFound, ErrUnauthorized, etc. based on the code.
-func clientError(jsonRPCErr *jsonrpc.Error) error {
-	rpcErr := &client.RPCError{
-		Msg:  jsonRPCErr.Message,
-		Code: int32(jsonRPCErr.Code),
+func (cl *Client) Call(ctx context.Context, msg *transactions.CallMessage, opts ...baseClient.ActionCallOption) ([]map[string]any, error) {
+	cmd := &jsonrpc.CallRequest{
+		Body:     msg.Body,
+		AuthType: msg.AuthType,
+		Sender:   msg.Sender,
 	}
-	err := errors.Join(jsonRPCErr, rpcErr)
+	res := &jsonrpc.CallResponse{}
+	err := cl.CallMethod(ctx, string(jsonrpc.MethodCall), cmd, res)
+	if err != nil {
+		return nil, err
+	}
+	return unmarshalMapResults(res.Result)
+}
 
-	switch jsonRPCErr.Code {
-	case jsonrpc.ErrorEngineDatasetNotFound, jsonrpc.ErrorTxNotFound, jsonrpc.ErrorValidatorNotFound:
-		return errors.Join(client.ErrNotFound, err)
-	case jsonrpc.ErrorUnknownMethod:
-		// TODO: change to client.ErrMethodNotFound. This should be different
-		// from other "not found" conditions
-		return errors.Join(client.ErrNotFound, err)
-	// case jsonrpc.ErrorUnauthorized: // not yet used on server
-	// 	return errors.Join(client.ErrUnauthorized, err)
-	// case jsonrpc.ErrorInvalidSignature: // or leave this to core/client.Client to detect and report
-	// 	return errors.Join(client.ErrInvalidSignature, err)
-	default:
+func (cl *Client) ChainInfo(ctx context.Context) (*types.ChainInfo, error) {
+	cmd := &jsonrpc.ChainInfoRequest{}
+	res := &jsonrpc.ChainInfoResponse{}
+	err := cl.CallMethod(ctx, string(jsonrpc.MethodChainInfo), cmd, res)
+	if err != nil {
+		return nil, err
 	}
 
-	return err
+	return res, nil
+}
+
+func (cl *Client) EstimateCost(ctx context.Context, tx *transactions.Transaction) (*big.Int, error) {
+	cmd := &jsonrpc.EstimatePriceRequest{
+		Tx: tx,
+	}
+	res := &jsonrpc.EstimatePriceResponse{}
+	err := cl.CallMethod(ctx, string(jsonrpc.MethodPrice), cmd, res)
+	if err != nil {
+		return nil, err
+	}
+
+	// parse result.Price to big.Int
+	price, ok := new(big.Int).SetString(res.Price, 10)
+	if !ok {
+		return nil, fmt.Errorf("failed to parse price to big.Int. received: %s", res.Price)
+	}
+
+	return price, nil
+}
+
+func (cl *Client) GetAccount(ctx context.Context, pubKey []byte, status types.AccountStatus) (*types.Account, error) {
+	cmd := &jsonrpc.AccountRequest{
+		Identifier: pubKey,
+		Status:     &status,
+	}
+	res := &jsonrpc.AccountResponse{}
+	err := cl.CallMethod(ctx, string(jsonrpc.MethodAccount), cmd, res)
+	if err != nil {
+		return nil, err
+	}
+
+	// parse result.Balance to big.Int
+	balance, ok := new(big.Int).SetString(res.Balance, 10)
+	if !ok {
+		return nil, fmt.Errorf("failed to parse balance to big.Int. received: %s", res.Balance)
+	}
+
+	// I'm not sure about nonce yet, could be string could be *big.Int.
+	// parsedNonce, err := strconv.ParseInt(res.Account.Nonce, 10, 64)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	return &types.Account{
+		Identifier: pubKey,
+		Balance:    balance,
+		Nonce:      res.Nonce,
+	}, nil
+}
+
+func (cl *Client) GetSchema(ctx context.Context, dbid string) (*types.Schema, error) {
+	cmd := &jsonrpc.SchemaRequest{
+		DBID: dbid,
+	}
+	res := &jsonrpc.SchemaResponse{}
+	err := cl.CallMethod(ctx, string(jsonrpc.MethodSchema), cmd, res)
+	if err != nil {
+		return nil, err
+	}
+	return res.Schema, nil
+}
+
+func (cl *Client) ListDatabases(ctx context.Context, ownerPubKey []byte) ([]*types.DatasetIdentifier, error) {
+	cmd := &jsonrpc.ListDatabasesRequest{
+		Owner: ownerPubKey,
+	}
+	res := &jsonrpc.ListDatabasesResponse{}
+	err := cl.CallMethod(ctx, string(jsonrpc.MethodDatabases), cmd, res)
+	if err != nil {
+		return nil, err
+	}
+	if res.Databases == nil {
+		return nil, err
+	}
+	// A type alias makes a slice copy and conversions unnecessary.
+	return res.Databases, nil
+}
+
+func (cl *Client) Query(ctx context.Context, dbid, query string) ([]map[string]any, error) {
+	cmd := &jsonrpc.QueryRequest{
+		DBID:  dbid,
+		Query: query,
+	}
+	res := &jsonrpc.QueryResponse{}
+	err := cl.CallMethod(ctx, string(jsonrpc.MethodQuery), cmd, res)
+	if err != nil {
+		return nil, err
+	}
+	return unmarshalMapResults(res.Result)
+}
+
+func (cl *Client) TxQuery(ctx context.Context, txHash []byte) (*transactions.TcTxQueryResponse, error) {
+	cmd := &jsonrpc.TxQueryRequest{
+		TxHash: txHash,
+	}
+	res := &jsonrpc.TxQueryResponse{}
+	err := cl.CallMethod(ctx, string(jsonrpc.MethodTxQuery), cmd, res)
+	if err != nil {
+		return nil, err
+	}
+
+	return &transactions.TcTxQueryResponse{
+		Hash:     res.Hash,
+		Height:   res.Height,
+		Tx:       res.Tx,
+		TxResult: *res.TxResult,
+	}, nil
 }

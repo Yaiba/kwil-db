@@ -93,17 +93,17 @@ func NewClient(ctx context.Context, target string, opts *GatewayOptions) (*Gatew
 		return nil, fmt.Errorf("parse target: %w", err)
 	}
 
-	jsonrpcClientOpts := []rpcclient.Opts{}
+	jsonrpcClientOpts := []rpcClient.RPCClientOpts{
+		// so txClient and gatewayClient can share the connection
+		rpcClient.WithHTTPClient(httpConn),
+	}
+
 	if options != nil {
 		jsonrpcClientOpts = append(jsonrpcClientOpts,
-			rpcclient.WithLogger(options.Logger),
-			// so txClient and gatewayClient can share the connection
-			rpcclient.WithHTTPClient(httpConn),
+			rpcClient.WithLogger(options.Logger),
 		)
 	}
 
-	// NOTE: we are not using client.NewClient here, so we can configure
-	// it to use same http connection as gatewayClient.
 	txClient := rpcclient.NewClient(parsedTarget, jsonrpcClientOpts...)
 	userClient, err := client.WrapClient(ctx, txClient, &options.Options)
 	if err != nil {
@@ -111,7 +111,9 @@ func NewClient(ctx context.Context, target string, opts *GatewayOptions) (*Gatew
 	}
 
 	gatewayClient, err := jsonrpcGateway.NewClient(parsedTarget,
-		gateway.WithHTTPClient(httpConn))
+		// reuse the same http connection
+		gateway.WithBaseRPCClient(txClient.JSONRPCClient),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("create gateway rpc client: %w", err)
 	}
@@ -159,10 +161,6 @@ func (c *GatewayClient) Call(ctx context.Context, dbid string, action string, in
 			return nil, err
 		}
 	}
-
-	//if !errors.Is(err, rpcClient.ErrUnauthorized) {
-	//	return nil, err
-	//}
 
 	// we need to authenticate
 	err = c.authenticate(ctx)

@@ -5,9 +5,10 @@ import (
 	"net/url"
 	"time"
 
+	userclient "github.com/kwilteam/kwil-db/core/rpc/client"
 	"github.com/kwilteam/kwil-db/core/rpc/client/admin"
 	"github.com/kwilteam/kwil-db/core/rpc/client/user"
-	userclient "github.com/kwilteam/kwil-db/core/rpc/client/user/jsonrpc"
+	rpcclient "github.com/kwilteam/kwil-db/core/rpc/client/user/jsonrpc"
 	jsonrpc "github.com/kwilteam/kwil-db/core/rpc/json"
 	adminjson "github.com/kwilteam/kwil-db/core/rpc/json/admin"
 	"github.com/kwilteam/kwil-db/core/types"
@@ -17,25 +18,25 @@ import (
 // Client is an admin RPC client. It provides all methods of the user RPC
 // service, plus methods that are specific to the admin service.
 type Client struct {
-	*userclient.Client // expose all user service methods, and CallMethod for admin svc
+	*rpcclient.Client // expose all user service methods, and CallMethod for admin svc
 }
 
 // NewClient constructs a new admin Client.
-func NewClient(u *url.URL, opts ...userclient.Opts) *Client {
+func NewClient(u *url.URL, opts ...userclient.RPCClientOpts) *Client {
 	// alt: jsonclient.NewBaseClient() ... WrapBaseClient() ...
-	userClient := userclient.NewClient(u, opts...)
+	userClient := rpcclient.NewClient(u, opts...)
 	return WrapUserClient(userClient)
 }
 
 // WrapUserClient can be used to construct a new admin Client from an existing
 // user RPC client.
-func WrapUserClient(cl *userclient.Client) *Client {
+func WrapUserClient(cl *rpcclient.Client) *Client {
 	return &Client{
 		Client: cl,
 	}
 }
 
-var _ user.TxSvcClient = (*Client)(nil)  // via embedded userclient.Client
+var _ user.TxSvcClient = (*Client)(nil)  // via embedded userclient.JSONRPCClient
 var _ admin.AdminClient = (*Client)(nil) // with extra methods
 
 // Approve approves a validator join request for the validator identified by a

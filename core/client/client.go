@@ -66,9 +66,9 @@ func NewClient(ctx context.Context, target string, options *clientType.Options) 
 	// 	}
 	// }
 
-	jsonrpcClientOpts := []rpcclient.Opts{}
+	jsonrpcClientOpts := []rpcClient.RPCClientOpts{}
 	if options != nil && options.Logger.L != nil {
-		jsonrpcClientOpts = append(jsonrpcClientOpts, rpcclient.WithLogger(options.Logger))
+		jsonrpcClientOpts = append(jsonrpcClientOpts, rpcClient.WithLogger(options.Logger))
 	}
 	client := rpcclient.NewClient(parsedURL, jsonrpcClientOpts...)
 
