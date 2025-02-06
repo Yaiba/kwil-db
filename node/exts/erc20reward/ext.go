@@ -252,6 +252,32 @@ func init() {
 						},
 					},
 					// TODO: modify posterFee, modify signers
+					{
+						Name:            "propose_settings",
+						AccessModifiers: []pc.Modifier{pc.PUBLIC},
+						Parameters: []pc.PrecompileValue{
+							{Type: types.TextArrayType, Nullable: true}, // signers
+							{Type: types.IntType, Nullable: true},       // threshold
+							{Type: rewardAmtDecimal, Nullable: true},    // posterFee
+						},
+						Returns: &pc.MethodReturn{},
+						Handler: func(ctx *kcommon.EngineContext, app *kcommon.App, inputs []any, resultFn func([]any) error) error {
+							return ext.proposeSettings(ctx, app, inputs, resultFn)
+						},
+					},
+					{
+						Name:            "vote_settings",
+						AccessModifiers: []pc.Modifier{pc.PUBLIC},
+						Parameters: []pc.PrecompileValue{
+							{Type: types.UUIDType, Nullable: false},  // proposal id
+							{Type: types.ByteaType, Nullable: false}, // vote
+							{Type: types.TextType, Nullable: false},  // wallet address,
+						},
+						Returns: &pc.MethodReturn{},
+						Handler: func(ctx *kcommon.EngineContext, app *kcommon.App, inputs []any, resultFn func([]any) error) error {
+							return ext.proposeSettings(ctx, app, inputs, resultFn)
+						},
+					},
 				},
 				OnStart: func(ctx context.Context, app *kcommon.App) error {
 					tx, err := app.DB.BeginTx(ctx)
@@ -1034,3 +1060,105 @@ func (h *Erc20RewardExt) getClaimParam(ctx *kcommon.EngineContext, app *kcommon.
 		toBytes32Str(treeRoot),
 		meta.Map(proofs, toBytes32Str)})
 }
+
+// proposeSettings create a new proposition on the settings.
+// NOTE: this should be idempotent; after processing the arguments, we always present
+// the propose with FULL settings.
+func (h *Erc20RewardExt) proposeSettings(ctx *kcommon.EngineContext, app *kcommon.App, inputs []any, resultFn func([]any) error) error {
+	var signers []string
+	var threshold int64
+	var uint256PosterFee *types.Decimal
+
+	if inputs[0] != nil {
+		signers, ok := inputs[0].([]string)
+		if !ok {
+			return fmt.Errorf("invalid signers")
+		}
+
+		for _, signer := range signers {
+			if !ethCommon.IsHexAddress(signer) {
+				return fmt.Errorf("invalid signer")
+			}
+		}
+	}
+
+	if inputs[1] != nil {
+		threshold, ok := inputs[1].(int64)
+		if !ok {
+			return fmt.Errorf("invalid threshold")
+		}
+	}
+
+	if inputs[2] != nil {
+		posterFee, ok := inputs[2].(*types.Decimal)
+		if !ok {
+			return fmt.Errorf("invalid poster fee")
+		}
+
+		// require amount is positive
+		zero, _ := types.ParseDecimal("0.0")
+		r, err := types.DecimalCmp(zero, posterFee)
+		if err != nil {
+			return fmt.Errorf("invalid poster fee")
+		}
+		if r != -1 {
+			return fmt.Errorf("invalid poster fee")
+		}
+
+		uint256PosterFee, err := scaleUpUint256(posterFee, h.decimals)
+		if err != nil {
+			return err
+		}
+	}
+
+	if len(signers) == 0 && threshold == 0 && uint256PosterFee == nil {
+		return fmt.Errorf("no settings provided")
+	}
+
+	if len(signers) == 0 {
+		// populate it with existing signers
+	}
+
+	if threshold == 0 {
+		// populate it with existing threshold
+	}
+
+	if uint256PosterFee == nil {
+		// populate it with existing fee
+	}
+
+	// if no setting changes, return error
+
+	err := createSettingProposal()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func createSettingProposal() error {}
+
+var (
+	sqlInitTableSettingProposals = `
+-- setting_proposals holds the propositions on the settings of the reward contract.
+-- If the system(or global) safe nonce advanced before the proposal is passed, then the proposal is invalidated.
+CREATE TABLE IF NOT EXISTS setting_proposals (
+    id UUID PRIMARY KEY,
+    instance_ID UUID NOT NULL references %s.erc20rw_meta_contracts(id) ON UPDATE CASCADE ON DELETE CASCADE,
+    signers TEXT[] NOT NULL,
+    threshold INT8 NOT NULL,
+    poster_fee NUMERIC(78,0) NOT NULL,
+    safe_nonce INT8 NOT NULL, -- the safe nonce associated with this proposal
+    created_at INT8 NOT NULL,
+    needed_votes INT8 NOT NULL, -- the number of votes needed to pass the proposal
+    -- the following fields will be updated upon every vote, once enough votes are received
+    voters TEXT[] NOT NULL, -- the voters of the proposal
+    signatures BYTEA[] NOT NULL, -- the signatures of the voters
+    passed_at INT8 NOT NULL -- the block height when the proposal passed
+)`
+
+	sqlCreateSettingProposal = ``
+	sqlVoteSettingProposal   = ``
+	sqlGetSettingProposal    = ``
+)
